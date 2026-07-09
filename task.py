@@ -1,49 +1,60 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Protocol
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.optimize import root
 
 class Parameters(dict):
     pass
 
+class Equation(Protocol):
+    def __call__(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
+        ...
+    @property
+    def __name__(self) -> str: ...
+
 class Eigen():
     value: float
-    vector: list
-    def __init__(self, eigenvalue:float, eigenvector:list):
+    vector: NDArray
+    def __init__(self, eigenvalue: float, eigenvector: NDArray):
         self.value = eigenvalue
         self.vector = eigenvector
     def __repr__(self):
         return f"Eigen({self.value}, {self.vector})"
 
 class Task(ABC):
-    equilibriaPointsCount: int
+    equilibria_points_count: int
+    dimensions: int
 
     @abstractmethod
-    def system(self, z: np.array, parameters: Parameters) -> list:
+    def system(self, z: NDArray, parameters: Parameters) -> NDArray:
         pass
 
     @abstractmethod
-    def jacobian(self, z: np.array, parameters: Parameters) -> list:
+    def jacobian(self, z: NDArray, parameters: Parameters) -> NDArray:
         pass
 
     @abstractmethod
-    def equilibriaSeeds(self, parameters: Parameters) -> list:
+    def equilibria_seeds(self, parameters: Parameters) -> NDArray:
         pass
 
-    def equilibria(self, parameters: Parameters) -> list:
+    def equilibria(self, parameters: Parameters) -> NDArray:
         points = []
-        for x0 in self.equilibriaSeeds(parameters):
+        for x0 in self.equilibria_seeds(parameters):
             res = root(lambda z: self.system(z, parameters), x0)
             if res.success:
                 point = np.round(res.x, 8)
-                if list(point) not in points and all(point >= 0):
-                    points.append(list(point))
-        return points
+                if all(point >= 0):
+                    is_duplicate = any(np.all(point == p) for p in points)
+                    if not is_duplicate:
+                        points.append(point)
+        return np.array(points)
 
-    def getSaddle(self, parameters: Parameters) -> tuple[list,list[Eigen]] | None:
+    def get_saddle(self, parameters: Parameters) -> tuple[NDArray, list[Eigen]] | tuple[None, None]:
         eigens = []
         equilibria = self.equilibria(parameters)
-        if len(equilibria) == self.equilibriaPointsCount:
+        if len(equilibria) == self.equilibria_points_count:
             for point in equilibria:
                 jac = np.array(self.jacobian(point, parameters))
                 eigvals, eigvecs = np.linalg.eig(jac)
@@ -59,25 +70,26 @@ class Task(ABC):
         return None, None
 
     @abstractmethod
-    def multistableCondition(self, parameters: Parameters) -> bool:
+    def multistable_condition(self, parameters: Parameters) -> bool:
         pass
 
     @abstractmethod
-    def sample(self) -> tuple[list, Parameters]:
+    def sample(self) -> tuple[NDArray, Parameters]:
         pass
 
     @abstractmethod
-    def classifyPoint(self, point: np.array) -> int:
+    def classify_point(self, point: NDArray) -> int:
         pass
 
     @abstractmethod
-    def expansion(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list, weights: list = []) -> list[list]:
+    def expansion(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
         pass
 
 class TwoDTask(Task):
-    equilibriaPointsCount = 4
+    equilibria_points_count = 4
+    dimensions = 2
 
-    def system(self, z: np.array, parameters: Parameters) -> list:
+    def system(self, z: NDArray, parameters: Parameters) -> NDArray:
         x, y = z
         rx, ry = parameters["r"]
         sx, sy = parameters["s"]
@@ -86,18 +98,18 @@ class TwoDTask(Task):
 
         dx = rx * x * (1 - (x/cx)) - sx*x*y
         dy = ry * y * (1 - (y/cy)) + (S*sx-sy)*x*y
-        return [dx, dy]
+        return np.array([dx,dy])
 
-    def jacobian(self, z: np.array, parameters: Parameters) -> list:
+    def jacobian(self, z: NDArray, parameters: Parameters) -> NDArray:
         x, y = z
         rx, ry = parameters["r"]
         sx, sy = parameters["s"]
         cx, cy = parameters["c"]
         S = parameters["S"]
 
-        return [[rx*(1-((2*x)/(cx)))-sx*y,-sx*x],[(S*sx-sy)*y,ry*(1-((2*y)/(cy)))+(S*sx-sy)*x]]
+        return np.array([[rx*(1-((2*x)/(cx)))-sx*y,-sx*x],[(S*sx-sy)*y,ry*(1-((2*y)/(cy)))+(S*sx-sy)*x]])
 
-    def equilibriaSeeds(self, parameters: Parameters) -> list:
+    def equilibria_seeds(self, parameters: Parameters) -> NDArray:
         cx, cy = parameters["c"]
         
         seeds = [
@@ -107,9 +119,9 @@ class TwoDTask(Task):
             [cx/2, cy/2]
         ]
 
-        return seeds
+        return np.array(seeds)
 
-    def multistableCondition(self, parameters: Parameters) -> bool:
+    def multistable_condition(self, parameters: Parameters) -> bool:
         rx, ry = parameters["r"]
         sx, sy = parameters["s"]
         cx, cy = parameters["c"]
@@ -117,7 +129,7 @@ class TwoDTask(Task):
 
         return (rx<sx*cy) and ((ry*(S*sx-sy)*cx)<0)
 
-    def sample(self) -> tuple[list, Parameters]:
+    def sample(self) -> tuple[NDArray, Parameters]:
         x, y = np.random.uniform(0, 1, 2)
     
         mu = np.random.uniform(0, 0.035)
@@ -132,9 +144,9 @@ class TwoDTask(Task):
 
         S = np.random.uniform(0, 0.3)
 
-        return [x,y], Parameters({"r":[rx,ry], "s":[sx,sy], "c":[cx,cy], "S":S})
+        return np.array([x,y]), Parameters({"r":[rx,ry], "s":[sx,sy], "c":[cx,cy], "S":S})
 
-    def classifyPoint(self, point: np.array) -> int:
+    def classify_point(self, point: NDArray) -> int:
         x, y = point
         if x < 1e-2:
             return -1
@@ -142,9 +154,9 @@ class TwoDTask(Task):
             return 1
         return 0
 
-    def expansion1(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list[list]:
-        if not list(weights):
-            weights = np.ones(20)
+    def expansion(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
+        if weights is None:
+            weights = np.ones(21)
             
         HG0, F0 = z
         ghg, gf = parameters["r"]
@@ -176,36 +188,19 @@ class TwoDTask(Task):
         term19 = weights[18] * (ehg * HG0**2 - ef * F0**2)
         term20 = weights[19] * (khg * HG0**2 - kf * F0**2)
 
-        #term21 = weights[20] * (HG0**3 - F0**3)
+        term21 = weights[20] * (HG0**3 - F0**3)
 
-        return [[term1, term2, term3, term4, term5,
+        return [np.array([term1, term2, term3, term4, term5,
                 term6, term7, term8, term9, term10,
                 term11, term12, term13, term14, term15,
-                term16, term17, term18, term19, term20]]
-
-    def expansion2(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list:
-        if not list(weights):
-            weights = np.ones(3)
-        x, y = z
-        slx, sly = saddlePoint
-        for eigen in eigens:
-            if eigen.value < 0:
-                vx, vy = eigen.vector
-        term1 = weights[0] * ((vy*(x-slx)+(vy/slx)*(x-slx)*(x-slx)) - (vx*(y-sly)+(vx/sly)*(y-sly)*(y-sly)))
-        term2 = weights[1] * (x*(x-slx)*(x-slx))
-        term3 = -1 * weights[2] * (y*(y-sly)*(y-sly))
-        #term4 = weights[3] * ((x-slx)*(x-slx)*((x-slx)*(x-slx)-slx*slx))
-        #term5 = -1 * weights[4] * ((y-sly)*(y-sly)*((y-sly)*(y-sly)-sly*sly))
-        #term6 = weights[5] * ((x-slx)*(x-slx)*(x*x*x+(x-slx)*(x-slx)*(x-slx)))
-        #term7 = -1 * weights[6] * ((y-sly)*(y-sly)*(y*y*y+(y-sly)*(y-sly)*(y-sly)))
-
-        return [[term1, term2,term3]]
+                term16, term17, term18, term19, term20, term21])]
     
-    def expansion(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list[list]:
-        if not list(weights):
+    def compromise_expansion(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
+        if weights is None:
             weights = np.ones(10)
 
-        slx, sly = saddlePoint    
+        slx, sly = saddle_point   
+        vx, vy = 0.0, 0.0
         for eigen in eigens:
             if eigen.value < 0:
                 vx, vy = eigen.vector
@@ -232,35 +227,33 @@ class TwoDTask(Task):
         term9 = weights[8] * (ehg * HG0**2 - ef * F0**2)
         term10 = weights[9] * (khg * HG0**2 - kf * F0**2)
 
-        #term21 = weights[20] * (HG0**3 - F0**3)
+        return [np.array([term1, term2, term3, term4, term5,
+                term6, term7, term8, term9, term10])]
 
-        return [[term1, term2, term3, term4, term5,
-                term6, term7, term8, term9, term10]]
-
-    def saddleOmegaSeparatrix(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list:
+    def saddle_omega_separatrix(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
         x, y = z
-        slx, sly = saddlePoint
+        slx, sly = saddle_point
         for eigen in eigens:
             if eigen.value < 0:
                 vx, vy = eigen.vector
         term1 = vy*(x-slx)
         term2 = -1 * vx*(y-sly)
 
-        return [[term1, term2]]
+        return [np.array([term1, term2])]
     
-    def saddleAlphaSeparatrix(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list:
+    def saddle_alpha_separatrix(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
         x, y = z
-        slx, sly = saddlePoint
+        slx, sly = saddle_point
         for eigen in eigens:
             if eigen.value > 0:
                 vx, vy = eigen.vector
         term1 = vy*(x-slx)
         term2 = -1 * vx*(y-sly)
 
-        return [[term1, term2]]
+        return [np.array([term1, term2])]
 
-    def RGR(self, z: np.array, parameters: Parameters, saddlePoint: list, eigens: list[Eigen], weights: list = []) -> list:
+    def RGR(self, z: NDArray, parameters: Parameters, saddle_point: NDArray, eigens: list[Eigen], weights: Optional[NDArray] = None) -> list[NDArray]:
         values = self.system(z,parameters)
         term1 = values[0] / z[0]
         term2 = -values[1] / z[1]
-        return [[term1,term2]]
+        return [np.array([term1,term2])]

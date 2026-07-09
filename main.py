@@ -1,30 +1,20 @@
 import data
-from task import TwoDTask
-import seaborn as sns
-import pprint
 import matplotlib.pyplot as plt
-import pandas as pd
-
-from sys import exit
-
-def heatmap(task, dataset:dict):
-    a,b=ml.prepareFeatures(task,dataset)
-    corr = a.corr()
-    sns.heatmap(corr,annot=True,cmap="coolwarm")
-    plt.show()
+from task import TwoDTask
 
 if __name__ == '__main__':
     import ml
     import exampling
-    import utils
     task = TwoDTask()
-
-    dataset = utils.loadDataset()
-    #dataset = data.generateDataset(task,5000)
-    #utils.saveDataset(dataset)
+    
+    dataset = data.generate_dataset(task,size = 5000)
     weights, statistics = ml.train(task, dataset)
-    pprint.pprint(weights)
-    pprint.pprint(statistics)
-    example = data.generateExample(task)
-    pprint.pprint(example[0])
-    exampling.drawExample(task, example, weights)
+
+    print(f"[Result] Weights:\n{weights}")
+    print(f"[Result] Statistics:\n{statistics}")
+
+    example = data.generate_example(task, 100)
+    figure, axis = exampling.drawExample(task, [task.expansion, task.saddle_omega_separatrix, task.RGR], example, weights)
+    axis.legend()
+    plt.show()
+    
