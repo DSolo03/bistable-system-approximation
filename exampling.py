@@ -6,7 +6,7 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 from task import Equation, Task
 
-def drawLine(axis: Axes, equation: Equation, sample: DatasetSample, lambdas: NDArray, color: str | tuple[float, ...] = "green"):
+def draw_line(axis: Axes, equation: Equation, sample: DatasetSample, lambdas: NDArray, color: str | tuple[float, ...] = "green"):
     x = np.linspace(-5, 5, 1000)
     y = np.linspace(-5, 5, 1000)
     
@@ -15,7 +15,7 @@ def drawLine(axis: Axes, equation: Equation, sample: DatasetSample, lambdas: NDA
 
     axis.contour(X, Y, Z, levels=[0], colors=color)
 
-def drawExample(task: Task, equations: list[Equation], dataset: list[DatasetSample], lambdas: NDArray) -> tuple[Figure, Axes]:
+def draw_example(task: Task, equations: list[Equation], dataset: list[DatasetSample], lambdas: NDArray) -> tuple[Figure, Axes]:
     figure, axis = plt.subplots()
     axis.set_xlim(0,1)
     axis.set_ylim(0,1)
@@ -44,7 +44,7 @@ def drawExample(task: Task, equations: list[Equation], dataset: list[DatasetSamp
     for i, equation in enumerate(equations):
         color_idx = allowed_indices[i % len(allowed_indices)]
         line_color = color_map(color_idx)
-        drawLine(axis, equation, row, lambdas, color = line_color) 
+        draw_line(axis, equation, row, lambdas, color = line_color) 
         func_name = equation.__name__
         axis.plot([], [], color=line_color, label=func_name)
     

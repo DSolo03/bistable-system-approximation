@@ -14,7 +14,7 @@ if __name__ == '__main__':
     print(f"[Result] Statistics:\n{statistics}")
 
     example = data.generate_example(task, 100)
-    figure, axis = exampling.drawExample(task, [task.expansion, task.saddle_omega_separatrix, task.RGR], example, weights)
+    figure, axis = exampling.draw_example(task, [task.expansion, task.saddle_omega_separatrix, task.RGR], example, weights)
     axis.legend()
     plt.show()
     

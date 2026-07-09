@@ -77,8 +77,9 @@ def train(task: Task, dataset: list[DatasetSample], balance: bool = True) -> tup
     probabilities = 1 / (1 + np.exp(-predictions_proba))
 
     lambdas = lambdas / scaler.scale_
+    divider = lambdas[0]
     for i in range(len(lambdas)):
-        lambdas[i]=lambdas[i]/lambdas[0]
+        lambdas[i] = lambdas[i] / divider
 
     loss = log_loss(y_test, probabilities)
     accuracy = accuracy_score(y_test, predictions)
